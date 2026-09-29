@@ -693,13 +693,20 @@ def growing_modes(p: Parameters) -> list[complex]:
     return sorted(roots, key=lambda z: -z.imag)
 
 
-def imaginary_mode_guaranteed(p: Parameters) -> bool:
-    """kappa*Lambda_b < |A/B| at omega=0 with kappa > 0 forces an imaginary root."""
+def critical_kappa(p: Parameters) -> float:
+    """kappa_c = |A/B|(omega=0) / Lambda_b; inf if Lambda_b <= 0."""
     s = p.lam + p.nu / 2.0
     t = p.lam - p.nu / 2.0
     ratio = math.gamma(s) / math.gamma(t)
     r0 = abs(math.gamma(-p.nu) / math.gamma(p.nu)) * ratio**2
-    return p.kappa > 0.0 and p.kappa * p.boundary_offset < r0
+    if p.boundary_offset <= 0.0:
+        return math.inf
+    return r0 / p.boundary_offset
+
+
+def imaginary_mode_guaranteed(p: Parameters) -> bool:
+    """0 < kappa < kappa_c at omega=0 forces an imaginary root."""
+    return p.kappa > 0.0 and p.kappa < critical_kappa(p)
 
 
 def growth_rows(
@@ -1005,6 +1012,31 @@ def plot_spectrum_rows(
     style_axes(ax, x_label=x_label, y_label=r"positive root $\omega_n$")
 
 
+def draw_critical_kappa(ax: Axes, p: Parameters, label_y: float = 2.0) -> None:
+    """Dashed line at kappa_c with a small label just inside the shaded zone."""
+    kappa_c = critical_kappa(p)
+    if not math.isfinite(kappa_c) or not KAPPA_SPECTRUM_MIN < kappa_c < KAPPA_SPECTRUM_MAX:
+        return
+    ax.axvline(
+        kappa_c,
+        color=BRICK,
+        linestyle="--",
+        linewidth=1.1,
+        zorder=4,
+        label=rf"$\kappa_c={kappa_c:.3f}$",
+    )
+    ax.text(
+        kappa_c - 0.03,
+        label_y,
+        r"$\kappa_c$",
+        color=BRICK,
+        ha="right",
+        va="center",
+        zorder=6,
+        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.85, "pad": 1.5},
+    )
+
+
 def plot_massless_kappa_spectrum(
     p: Parameters,
     growth: Sequence[tuple[float, complex | None, bool]],
@@ -1023,8 +1055,9 @@ def plot_massless_kappa_spectrum(
     )
     fig, ax = plt.subplots()
     plot_spectrum_rows(ax, rows, r"Wentzell coupling $\kappa$", growth)
+    draw_critical_kappa(ax, p)
     legend_above(
-        ax, rf"$m_b^2={p.mb2:g}$, $\xi_b={p.xi_b:g}$; markers are sorted roots", ncol=2
+        ax, rf"$m_b^2={p.mb2:g}$, $\xi_b={p.xi_b:g}$; markers are sorted roots", ncol=3
     )
     save_figure(fig, "05_massless_spectrum_vs_kappa", settings, reporter)
     return rows
