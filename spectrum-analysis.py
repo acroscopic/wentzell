@@ -9,7 +9,7 @@ Massless bulk, d=3 and ell=0
 
 General massive bulk
     kappa * (omega**2 - ell*(ell+d-2) - mb2 - xi_b*R_b)
-        = Gamma(lambda+nu/2-omega/2)
+        = 2*nu * Gamma(lambda+nu/2-omega/2)
           Gamma(lambda+nu/2+omega/2)
           Gamma(-nu)
           -------------------------------------------------
@@ -372,7 +372,7 @@ def massive_rhs(omega: float, p: Parameters) -> float:
 
     nu = p.nu
     lam = p.lam
-    return signed_gamma_ratio(
+    return 2.0 * nu * signed_gamma_ratio(
         (
             lam + nu / 2.0 - omega / 2.0,
             lam + nu / 2.0 + omega / 2.0,
@@ -698,7 +698,7 @@ def critical_kappa(p: Parameters) -> float:
     s = p.lam + p.nu / 2.0
     t = p.lam - p.nu / 2.0
     ratio = math.gamma(s) / math.gamma(t)
-    r0 = abs(math.gamma(-p.nu) / math.gamma(p.nu)) * ratio**2
+    r0 = 2.0 * p.nu * abs(math.gamma(-p.nu) / math.gamma(p.nu)) * ratio**2
     if p.boundary_offset <= 0.0:
         return math.inf
     return r0 / p.boundary_offset
@@ -856,7 +856,7 @@ def plot_massless_intersections(
     y_lhs = [quantization_lhs(w, p) for w in x_lhs]
 
     fig, ax = plt.subplots()
-    ax.plot(x_lhs, y_lhs, color=BLUE, label=r"$\kappa(\omega^2-\Lambda_b)$")
+    ax.plot(x_lhs, y_lhs, color=BLUE, label=r"$\kappa(\omega^2-\Lambda)$")
     ax.plot(x_rhs, y_rhs, color=BLACK, label=r"$-\omega\cot(\pi\omega/2)$")
     draw_poles(ax, poles)
     draw_root_markers(ax, roots, p)
@@ -1057,7 +1057,7 @@ def plot_massless_kappa_spectrum(
     plot_spectrum_rows(ax, rows, r"Wentzell coupling $\kappa$", growth)
     draw_critical_kappa(ax, p)
     legend_above(
-        ax, rf"$m_b^2={p.mb2:g}$, $\xi_b={p.xi_b:g}$; markers are sorted roots", ncol=3
+        ax, rf"$m_b^2={p.mb2:g}$, $\xi_b={p.xi_b:g}$, $M^2=0$", ncol=3
     )
     save_figure(fig, "05_massless_spectrum_vs_kappa", settings, reporter)
     return rows
@@ -1137,7 +1137,7 @@ def plot_massive_intersections(
     y_lhs = [quantization_lhs(w, p) for w in x_lhs]
 
     fig, ax = plt.subplots()
-    ax.plot(x_lhs, y_lhs, color=BLUE, label=r"$\kappa(\omega^2-\Lambda_b)$")
+    ax.plot(x_lhs, y_lhs, color=BLUE, label=r"$\kappa(\omega^2-\Lambda)$")
     ax.plot(x_rhs, y_rhs, color=BLACK, label=r"$A(\omega)/B(\omega)$")
     draw_poles(ax, poles)
     draw_root_markers(ax, roots, p)
