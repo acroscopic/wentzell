@@ -2,34 +2,38 @@
 
 Companion code for the preprint *Klein-Gordon Fields with Dynamical Wentzell Boundary Conditions in Global Anti-de Sitter Spacetime*.
 
-`wentzell_spectrum_plots.py` solves the quantization condition for a Klein-Gordon field in global AdS with dynamical Wentzell boundary conditions. It finds the real mode frequencies and any growing modes, then saves the figures used in the preprint.
+`spectrum_analysis.py` computes the mode spectrum and stability of a Klein-Gordon field in global AdS with dynamical Wentzell boundary conditions, and generates the figures in the preprint.
 
 ## Requirements
 
-Python 3 and Matplotlib 3.6 or newer.
+Python 3, NumPy, SciPy, and Matplotlib
 
 ```
-pip install matplotlib
+pip install numpy scipy matplotlib
 ```
 
 ## Usage
 
-```
-python wentzell_spectrum_plots.py
-```
+Parameters can be set in `PAR` at the top of the file.
 
-The script asks for each parameter. Press Enter at every prompt to use the preprint values. Roots and growing modes are printed to the terminal, and figures are saved to `generated_graphs/`.
+```
+python spectrum_analysis_v2.py
+```
+ 
+Results are printed to the terminal, figures are saved to `generated_graphs/`, and tables are saved to `generated_data/`.
 
 ## Figures
 
 | File | Contents |
 |---|---|
-| `01_massless_intersections` | Both sides of the M² = 0 condition, roots marked |
-| `02_massless_spectrum_vs_kappa` | M² = 0 roots vs κ, growing-mode region shaded |
-| `03_massless_boundary_sweeps` | M² = 0 roots vs m_b² and ξ_b |
-| `04_massive_intersections` | Both sides of the massive condition, roots marked |
-| `05_massive_spectrum_vs_kappa` | Massive roots vs κ, growing-mode region shaded |
-| `06_massive_bulk_mass_sweep` | Roots vs M² |
-| `07_massive_ell_sweep` | Roots vs ℓ |
-| `08_growth_rate_vs_kappa` | Im ω of the most unstable mode vs κ |
-| `09_growing_modes_complex_plane` | Growing modes in the complex ω plane, colored by κ |
+| `01_massless_intersections` | Both sides of the M^2 = 0 condition, roots marked |
+| `02_spectrum_vs_kappa` | Roots vs kappa for M^2 = 0 and 0.25, unstable region shaded |
+| `03_massive_intersections` | Both sides of the massive condition, roots marked |
+| `04_massless_boundary_sweeps` | M^2 = 0 roots vs m_b^2 and xi_b |
+| `06_massive_bulk_mass_sweep` | Roots vs M^2 |
+| `07_massive_ell_sweep` | Roots vs ell |
+| `08_growth_rate_vs_kappa` | Im omega of the growing modes vs kappa |
+| `09_growing_modes_complex_plane` | Growing modes in the complex omega plane, colored by kappa |
+| `10_stability_diagram` | Stable and unstable regions in the (M^2, kappa) plane |
+| `11_bifurcation_diagram` | Re omega and Im omega vs kappa near the Krein collision |
+| `12_mode_profiles` | Radial profiles of the first real modes |
