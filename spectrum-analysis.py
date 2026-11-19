@@ -1,4 +1,5 @@
-"""Spectrum and stability of a Klein-Gordon field with Wentzell boundary conditions in AdS_{d+1}.
+"""Spectrum and stability of a Klein-Gordon field with dynamical Wentzell boundary
+conditions in global AdS_{d+1}.
 
 Quantization condition (w here is omega):
     kappa (w^2 - Lambda) = -A/B
@@ -6,15 +7,23 @@ Quantization condition (w here is omega):
     nu = sqrt(1 + 4 M^2)/2,   s = (2 ell + d + 2 nu)/4,   t = (2 ell + d - 2 nu)/4,
     Lambda = ell (ell + d - 2) + mb2 + xi_b (d - 1)(d - 2).
 
-Roots are found from D(w) = kappa (w^2 - Lambda) b(w) + a(w), with
-    a = Gamma(-nu)/Gamma(nu) / [Gamma(t - w/2) Gamma(t + w/2)],
-    b = 1 / [Gamma(s - w/2) Gamma(s + w/2)],
-both entire since 1/Gamma is entire.
+The code uses the pole-free form D(w) = kappa (w^2 - Lambda) b(w) + a(w) = 0 with the entire
+functions a = Gamma(-nu)/Gamma(nu) / [Gamma(t - w/2) Gamma(t + w/2)] and
+b = 1 / [Gamma(s - w/2) Gamma(s + w/2)], so that A/B = a/b. D is linear in kappa, so every
+complex w is a mode of exactly one coupling, kappa(w) = -a / [(w^2 - Lambda) b].
 
-Searched: real roots in 0 < w < 14; complex roots in 0 < Re w <= 3, 0 < Im w <= 8, enlarged
-until no branch reaches the edge. Requires -1/4 < M^2 < 3/4.
+Search ranges and limits:
+  - real modes: 0 < w < 14, from sign changes of D on a grid of 6000 points, from every dip of
+    |D| that hides a close pair or a double root, and from w = sqrt(Lambda) when a vanishes there;
+  - growing modes: the box 0 < Re w <= 3, 0 < Im w <= 8, from the zero contour of Im kappa(w);
+    the box is enlarged until no branch runs into its top or right edge (see locus);
+  - neither search proves completeness: modes outside these ranges, or closer together than
+    the grids resolve, can be missed;
+  - the sector is ell = 0 unless a sweep says otherwise;
+  - 0 < nu < 1 is required, that is -1/4 < M^2 < 3/4; other masses stop with an error.
 
-Run:  python spectrum_analysis_v2.py   (figures to generated_graphs/, tables to generated_data/)
+Edit PAR below and run:  python spectrum_analysis_v2.py
+Figures go to generated_graphs/ and tables of numbers to generated_data/, next to this file.
 """
 import os
 
@@ -33,21 +42,22 @@ OUT = os.path.join(HERE, "generated_graphs")
 DATA = os.path.join(HERE, "generated_data")
 
 KAPPAS = (-2.5, 2.5)  # kappa range of the sweeps
-# M^2 values for the stability diagram, denser near both ends and near 0
+# Bulk masses for the stability diagram, across -1/4 < M^2 < 3/4: dense near both ends and
+# where the pair opens; the end points stay 0.0004 inside the range.
 M2_GRID = np.r_[np.linspace(0.02, 0.5, 15)[:-1] ** 2 - 0.25,
                 np.linspace(0, 0.15, 150)[1:],
                 np.linspace(0.15, 0.7, 90)[1:],
                 0.75 - np.linspace(np.sqrt(0.05), 0.02, 10)[1:] ** 2]
 FINE_BOX = (3.0, 8.0)  # Re w and Im w covered by the fine grid of locus
 
-# Okabe-Ito colors
+# Okabe-Ito colors (color-blind safe); series also differ by line style or marker
 BLUE, RED, GREEN, PINK, GOLD = "#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00"
 COLORS, LINES, DOTS = [BLUE, RED, GREEN, PINK], ["-", "--", "-.", ":"], "osD^"
 W1 = (5.5, 3.6)  # one panel at 0.85 textwidth, so text prints at true size
 plt.rcParams.update({"font.size": 11, "savefig.dpi": 300})
 
 def derived(par):
-    """nu, s, t, Lambda."""
+    """nu, s, t and Lambda for a parameter dict."""
     d, ell, M2 = par["d"], par["ell"], par["M2"]
     if not -0.25 < M2 < 0.75:
         raise ValueError(f"M^2 = {M2} is outside (-1/4, 3/4), so nu is outside (0, 1)")
@@ -61,19 +71,19 @@ def derived(par):
 # ------------------------------------------------------- quantization condition
 
 def ab(w, par):
-    """a(w), b(w), with A/B = a/b."""
+    """The entire functions a(w), b(w) with A/B = a/b."""
     nu, s, t, _ = derived(par)
     a = gamma(-nu) / gamma(nu) * rgamma(t - w / 2) * rgamma(t + w / 2)
     b = rgamma(s - w / 2) * rgamma(s + w / 2)
     return a, b
 
 def residual(w, par, kappa):
-    """D(w)."""
+    """D(w): pole-free, and zero exactly at the modes."""
     a, b = ab(w, par)
     return kappa * (w * w - derived(par)[3]) * b + a
 
 def kappa_of(w, par):
-    """kappa(w) = -a / [(w^2 - Lambda) b]."""
+    """The coupling for which w is a mode."""
     a, b = ab(w, par)
     return -a / ((w * w - derived(par)[3]) * b)
 
@@ -85,17 +95,17 @@ def slope(f, x, h=1e-6):
 # ---------------------------------------------------------------- root finding
 
 def real_roots(par, kappa=None, wmax=14.0, n=6000, mult=False):
-    """Real roots of D in (0, wmax); mult=True also returns multiplicities (1 or 2)."""
+    """Positive real modes below wmax, sorted, each once; mult=True adds multiplicities (1 or 2)."""
     kappa = par["kappa"] if kappa is None else kappa
     def f(x):
         return residual(x, par, kappa).real
     w = np.linspace(1e-6, wmax, n)
     fw = f(w)
     found = [(brentq(f, w[j], w[j + 1]), 1) for j in np.flatnonzero(fw[:-1] * fw[1:] < 0)]
-    for j in np.flatnonzero(fw == 0):  # exact zeros on the grid
+    for j in np.flatnonzero(fw == 0):  # a grid point that is exactly a root
         touches = 0 < j < n - 1 and fw[j - 1] * fw[j + 1] > 0
         found.append((w[j], 2 if touches else 1))
-    # local minima of |D| without a sign change
+    # dips: |D| has a local minimum but D keeps its sign; a close pair may hide there
     same_sign = (fw[:-2] * fw[1:-1] > 0) & (fw[1:-1] * fw[2:] > 0)
     low = (abs(fw[1:-1]) <= abs(fw[:-2])) & (abs(fw[1:-1]) <= abs(fw[2:]))
     for j in np.flatnonzero(same_sign & low) + 1:
@@ -103,7 +113,7 @@ def real_roots(par, kappa=None, wmax=14.0, n=6000, mult=False):
     kd = sqrt_lambda_kappa(par)
     if kd is not None and np.sqrt(derived(par)[3]) < wmax:
         found.append((np.sqrt(derived(par)[3]), 2 if abs(kappa - kd) < 1e-8 * abs(kd) else 1))
-    roots, mults = [], []  # merge roots closer than 1e-8
+    roots, mults = [], []  # count roots closer than 1e-8 once, with the higher multiplicity
     for r, m in sorted(found):
         if roots and r - roots[-1] < 1e-8:
             mults[-1] = max(mults[-1], m)
@@ -114,7 +124,7 @@ def real_roots(par, kappa=None, wmax=14.0, n=6000, mult=False):
     return (roots, mults) if mult else roots
 
 def split_dip(par, kappa, lo, hi):
-    """Roots of D on (lo, hi) around a minimum of |D|: two, one double, or none."""
+    """Roots inside a dip of |D| on (lo, hi): two close simple roots, one double root, or none."""
     def f(x):
         return residual(x, par, kappa).real
     def df(x):
@@ -122,38 +132,41 @@ def split_dip(par, kappa, lo, hi):
 
     if df(lo) * df(hi) >= 0:
         return []
-    x = brentq(df, lo, hi)  # extremum of D
+    x = brentq(df, lo, hi)  # the extremum of D in the dip
     if f(x) * f(lo) < 0:
         return [(brentq(f, lo, x), 1), (brentq(f, x, hi), 1)]
     a, b = ab(x, par)
-    # scale of the two terms of D
+    # compare with the size of the separate terms, not with D, which is itself ~0 here
     size = abs(kappa * b) * (x * x + abs(derived(par)[3])) + abs(a)
     return [(x, 2)] if abs(f(x)) < 1e-10 * size else []
 
 def sqrt_lambda_kappa(par):
-    """kappa where dD/dw = 0 at w = sqrt(Lambda), if a(sqrt(Lambda)) = 0; else None.
+    """If w = sqrt(Lambda) is a mode for every kappa, the kappa at which it is double, else None.
 
-    a(sqrt(Lambda)) = 0 when t - sqrt(Lambda)/2 is a non-positive integer (1/Gamma vanishes there).
+    There D = a, which vanishes at the poles of Gamma(t - w/2) (t + w/2 > 0 always).
+    Example: M^2 = 0, d = 3, ell = 0 gives w = 1 and kappa = -pi/4.
     """
     _, _, t, lam = derived(par)
-    if lam <= 0:
+    if lam <= 0:  # sqrt(Lambda) = 0 is outside the search range
         return None
     r = np.sqrt(lam)
     m = r / 2 - t
     if m < -1e-9 or abs(m - round(m)) > 1e-9:
         return None
     da = slope(lambda x: ab(x, par)[0], r)
-    return -da / (2 * r * ab(r, par)[1])  # dD/dw = 2 kappa w b + a' at w^2 = Lambda
+    return -da / (2 * r * ab(r, par)[1])  # where dD/dw = 2 kappa w b + a' vanishes
 
 
 # --------------------------------------------------------- instability windows
 
 def locus(par, n=500, max_side=200.0):
-    """Branches (w, kappa(w)) with Im w > 0 and kappa real.
+    """Growing modes for every real kappa, as branches (w, kappa) with Im w > 0.
 
-    Branch 0 is the imaginary axis, the rest the zero contour of Im kappa. The box starts at
-    FINE_BOX (n points per side), at least twice the Im w of kappa_min high; a side doubles
-    (n/2 more points) while a branch reaches it.
+    Branch 0 is the imaginary axis; the others are the off-axis curves where Im kappa(w) = 0,
+    found on a grid with n points per side over FINE_BOX and n/2 more beyond it. The box starts
+    at FINE_BOX, raised to twice the Im w of kappa_min, where two imaginary modes meet and leave
+    the axis. A side is then doubled while an off-axis branch runs into it, so every branch
+    returned ends on an axis. This is the slow step, so main computes it once per mass.
     """
     def grid(fine_end, end, points):
         g = np.linspace(1e-3, fine_end, points)
@@ -162,10 +175,10 @@ def locus(par, n=500, max_side=200.0):
     while True:
         x, y = grid(FINE_BOX[0], re_max, n), grid(FINE_BOX[1], im_max, n)
         axis = np.r_[1e-4, grid(FINE_BOX[1], im_max, 2 * n)]
-        branches = [(1j * axis, kappa_of(1j * axis, par).real)]
+        branches = [(1j * axis, kappa_of(1j * axis, par).real)]  # kappa is real on this axis
         W = x + 1j * y[:, None]
         a, b = ab(W, par)
-        im = (-a * np.conj((W * W - derived(par)[3]) * b)).imag  # |den|^2 Im kappa
+        im = (-a * np.conj((W * W - derived(par)[3]) * b)).imag  # |den|^2 Im kappa: no poles
         for seg in contour_generator(x, y, im).lines(0):
             w = seg[:, 0] + 1j * seg[:, 1]
             branches.append((w, kappa_of(w, par).real))
@@ -179,12 +192,12 @@ def locus(par, n=500, max_side=200.0):
                              f"at M^2 = {par['M2']:g}")
 
 def kappa_c(par):
-    """kappa(0). Needs Lambda != 0."""
+    """Coupling at which a mode passes through w = 0 (needs Lambda != 0)."""
     nu, s, t, lam = derived(par)
     return gamma(-nu) / gamma(nu) * (gamma(s) / gamma(t)) ** 2 / lam
 
 def kappa_min(par, im_max=8.0, n=4000):
-    """Minimum of kappa(iy) over y > 0, and the y where it occurs."""
+    """Most negative coupling with an imaginary mode, and its Im w (the range doubles as needed)."""
     def k_im(v):
         return kappa_of(1j * v, par).real
     while True:
@@ -195,18 +208,18 @@ def kappa_min(par, im_max=8.0, n=4000):
         if im_max > 200:  # safety stop
             raise ValueError(f"no minimum of kappa(i y) below y = {im_max:g}")
         im_max *= 2
-    if j == 0:  # minimum at y -> 0
+    if j == 0:  # kappa(iy) rises from y = 0, so the branch ends at kappa_c
         return kappa_c(par), 0.0
     v = brentq(lambda u: slope(k_im, u), y[j - 1], y[j + 1])
     return k_im(v), v
 
 def pole_cut(par):
-    """|kappa| above which a point is treated as a pole."""
+    """|kappa| above which a point counts as a pole: 1000 times the factor Gamma(-nu)/Gamma(nu)."""
     nu = derived(par)[0]
     return 1e3 * abs(gamma(-nu) / gamma(nu))
 
 def collisions(par, branches):
-    """[(kappa_s, w_s)]: real w within 0.05 of a branch end where dkappa/dw = 0."""
+    """Krein collisions [(kappa_s, w_s)]: dkappa/dw = 0 on the real axis near a branch end."""
     def k_re(x):
         return kappa_of(x, par).real
     out = []
@@ -218,14 +231,16 @@ def collisions(par, branches):
     return out
 
 def pair_range(par, branches):
-    """Min and max of kappa on the off-axis branches (NaN if none)."""
+    """Couplings spanned by the off-axis branches (the complex pair); NaNs if there are none."""
     ks = np.concatenate([np.empty(0)] + [k[np.abs(k) < pole_cut(par)] for _, k in branches[1:]])
     return (ks.min(), ks.max()) if ks.size else (np.nan, np.nan)
 
 def unstable_intervals(par, branches, tol=2e-3):
-    """Sorted disjoint intervals (lo, hi): (kappa_min, 0) joined with pair_range.
+    """Couplings with a growing mode, as a sorted list of disjoint open intervals (lo, hi).
 
-    Ends of pair_range within relative tol of kappa_s or kappa_min are set to them.
+    Imaginary modes are taken to fill (kappa_min, 0), as in the original code; the complex pair
+    fills pair_range. The grid ends of that range are moved onto the computed kappa_s or
+    kappa_min when they agree with one to a relative tol, so that touching regions join.
     """
     km = kappa_min(par)[0]
     spans = [(km, 0.0)]
@@ -259,7 +274,7 @@ def as_table(names, rows, ints=()):
     return {c: rows[:, i].astype(int) if c in ints else rows[:, i] for i, c in enumerate(names)}
 
 def roots_vs_kappa(par, kappas, n=5):
-    """First n real roots at each kappa, and the number of double roots among them."""
+    """The first n real modes at each kappa, and how many of them are double."""
     rows = []
     for k in kappas:
         r, m = real_roots(par, kappa=k, mult=True)
@@ -268,7 +283,7 @@ def roots_vs_kappa(par, kappas, n=5):
                     ints=["n_double"])
 
 def thresholds_vs_ell(par, ells, n=3):
-    """Lambda, kappa_c, kappa_min and the first n real roots for each ell."""
+    """Lambda, kappa_c, kappa_min and the first real modes for each angular momentum ell."""
     rows = []
     for ell in ells:
         q = {**par, "ell": ell}
@@ -278,7 +293,7 @@ def thresholds_vs_ell(par, ells, n=3):
     return as_table(names, rows, ints=["ell"])
 
 def stability_table(par, m2_values):
-    """kappa_c, kappa_min, pair_range, kappa_s and number of intervals for each M^2."""
+    """Thresholds and unstable intervals against the bulk mass (needs contourpy)."""
     rows = []
     for m2 in m2_values:
         q = {**par, "M2": m2}
@@ -335,12 +350,12 @@ def legend_below(ax, ncol, **kw):
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.21), ncol=ncol, frameon=False, **kw)
 
 def tint(hex_color, a):
-    """Mix of a color with white; a = 1 is the color."""
+    """Opaque mix of a color with white (a = 1 is the color itself), so fills never blend."""
     rgb = np.array([int(hex_color[i:i + 2], 16) for i in (1, 3, 5)]) / 255
     return tuple(1 - a * (1 - rgb))
 
 def plot_intersections(par, name, wmax=8.5):
-    """Both sides of the quantization condition against w."""
+    """Both sides of the condition against w; the modes are the crossings."""
     kappa, lam = par["kappa"], derived(par)[3]
     roots = real_roots(par, wmax=wmax)
     x = kappa * (roots ** 2 - lam)
@@ -358,7 +373,9 @@ def plot_intersections(par, name, wmax=8.5):
             label=r"$\omega\cot(\pi\omega/2)$" if simple_case else r"$-A(\omega)/B(\omega)$")
     ax.plot(kappa * (w * w - lam), w, "--", color=RED, label=r"$\kappa(\omega^2-\Lambda)$")
     ax.plot(x, roots, "o", color=GOLD, mec="black", ms=7, zorder=5, label="modes")
-    # labels above-right, or below-left in the right half; roots within 0.5 share one label
+    # Each mode sits where a flat blue branch meets the dashed curve, so the free corners are
+    # above-right and below-left. Labels in the right half go below-left to stay inside the
+    # axes. Modes closer than 0.5 share one label, which would otherwise overlap.
     xlim = (-70, 12)
     for group in np.split(np.arange(len(roots)), np.flatnonzero(np.diff(roots) >= 0.5) + 1):
         text = r"$\omega=" + ", ".join(f"{roots[i]:.3f}" for i in group) + "$"
@@ -373,11 +390,14 @@ def plot_intersections(par, name, wmax=8.5):
     save(fig, name)
 
 def spectrum_curves(ax, par, wmax=13, color=BLUE, lw=2, only=None):
-    """Real roots against kappa. With only = [(lo, hi), ...], draw just those kappa."""
+    """Real modes against kappa, as the zero contour of the normalized residual.
+
+    With only = [(lo, hi), ...], draw just the parts whose kappa lies in those intervals.
+    """
     k, w = np.linspace(*KAPPAS, 600), np.linspace(1e-4, wmax, 1200)
     a, b = ab(w, par)
     lam = derived(par)[3]
-    # D divided by the scale of its two terms
+    # normalized so that the contour level is not swamped where the Gamma functions are large
     norm = np.abs((w * w + lam) * b) + np.abs(a)
     f = (k[None, :] * ((w * w - lam) * b)[:, None] + a[:, None]) / norm[:, None]
     for seg in contour_generator(k, w, f).lines(0):
@@ -389,13 +409,13 @@ def spectrum_curves(ax, par, wmax=13, color=BLUE, lw=2, only=None):
            xlabel=r"Wentzell coupling $\kappa$", ylabel=r"real frequency $\omega_n$")
 
 def plot_spectrum_vs_kappa(cases, name):
-    """Real roots against kappa for two masses; red inside unstable_intervals."""
+    """Massless and massive real spectra side by side; orange inside the unstable intervals."""
     fig, axes = plt.subplots(1, 2, figsize=(W1[0], 3.5), sharey=True)
     for ax, (par, branches), tag in zip(axes, cases, "ab"):
         spans, ks = unstable_intervals(par, branches), collisions(par, branches)
         for lo, hi in spans:
             ax.axvspan(lo, hi, color=RED, alpha=0.09, lw=0)
-            # bracket under the axis
+            # a bracket under the axis marks each interval without relying on color
             ax.plot([lo, hi], [-0.045, -0.045], transform=ax.get_xaxis_transform(), color=RED,
                     lw=2, marker="|", ms=8, mew=2, clip_on=False)
         spectrum_curves(ax, par, wmax=8, lw=1.8)
@@ -404,7 +424,7 @@ def plot_spectrum_vs_kappa(cases, name):
         for k, tex in marks:
             ax.axvline(k, ls=":", color="black", lw=1.3)
             ax.text(k, 1.02, tex, transform=ax.get_xaxis_transform(), ha="center")
-        for k, w in ks:
+        for k, w in ks:  # two real modes merge here and leave the real axis
             ax.plot(k, w, "o", ms=3.5, color="black", zorder=5)
         ax.tick_params(axis="x", pad=9)  # room for the brackets
         ax.set_title(rf"({tag}) $M^2={par['M2']:g}$", loc="left", pad=16)
@@ -420,7 +440,7 @@ def plot_spectrum_vs_kappa(cases, name):
     save(fig, name)
 
 def plot_root_sweep(ax, par, field, values):
-    """n-th real root against n for several values of one parameter."""
+    """n-th mode against n for several values of one parameter."""
     for c, ls, m, v in zip(COLORS, LINES, DOTS, values):
         r = real_roots({**par, field: v})
         ax.plot(np.arange(1, len(r) + 1), r, ls, marker=m, ms=5, color=c, label=f"${v:g}$")
@@ -428,7 +448,7 @@ def plot_root_sweep(ax, par, field, values):
     ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
 
 def plot_sweeps(massless, massive):
-    """Sweeps of mb2 and xi_b (massless), and of M2 and ell (massive)."""
+    """Boundary-parameter sweeps (massless), and bulk-mass and ell sweeps (massive)."""
     fig, (left, right) = plt.subplots(1, 2, figsize=(W1[0], 3.2), sharey=True)
     plot_root_sweep(left, massless, "mb2", [0, 0.5, 1, 2])
     plot_root_sweep(right, massless, "xi_b", [-0.5, 0, 0.5, 1])
@@ -445,7 +465,7 @@ def plot_sweeps(massless, massive):
         save(fig, name)
 
 def plot_growth_rate(cases, name):
-    """Im w against kappa on each branch."""
+    """Im w of every growing branch against kappa."""
     fig, ax = plt.subplots(figsize=W1)
     for (par, branches), c, ls in zip(cases, [BLUE, RED], ["-", "--"]):
         for i, (w, k) in enumerate(branches):
@@ -456,22 +476,22 @@ def plot_growth_rate(cases, name):
     save(fig, name)
 
 def plot_complex_plane(cases, name, kmin=-2.0):
-    """Branches in the complex w plane, colored by kappa."""
+    """Growing modes in the complex w plane, colored by kappa (viridis also reads in grayscale)."""
     fig, axes = plt.subplots(1, 2, figsize=W1, sharey=True)
     dot = dict(ms=7, mfc="white", mec="black", zorder=5, clip_on=False)
     for ax, (par, branches), tag in zip(axes, cases, "ab"):
         for w, k in branches:
             m = (k >= kmin) & (k < 0)
-            for sign in (1, -1):  # w and -conj(w)
+            for sign in (1, -1):  # modes come in pairs w, -conj(w)
                 points = ax.scatter(sign * w.real[m], w.imag[m], c=k[m], s=6, lw=0,
                                     cmap="viridis", vmin=kmin, vmax=0)
-        ax.plot(0, 0, "o", **dot)
+        ax.plot(0, 0, "o", **dot)  # circle: kappa_c
         ax.annotate(r"$\kappa_c$", (0, 0), xytext=(7, 4), textcoords="offset points")
         ym = kappa_min(par)[1]
-        if ym > 0:
+        if ym > 0:  # square: the imaginary modes collide and leave the axis
             ax.plot(0, ym, "s", **dot)
             ax.annotate(r"$\kappa_{\min}$", (0, ym), xytext=(7, 5), textcoords="offset points")
-        for _, ws in collisions(par, branches):
+        for _, ws in collisions(par, branches):  # diamond: Krein collision on the real axis
             ax.plot([ws, -ws], [0, 0], "D", **dot)
             ax.annotate(r"$\kappa_s$", (ws, 0), xytext=(5, 7), textcoords="offset points")
         ax.set(xlim=(-2, 2), ylim=(0, 4), xlabel=r"$\mathrm{Re}\,\omega$")
@@ -482,16 +502,17 @@ def plot_complex_plane(cases, name, kmin=-2.0):
     save(fig, name)
 
 def stability_diagram(stab, name="10_stability_diagram"):
-    """unstable_intervals in the (M^2, kappa) plane."""
+    """Stable and unstable couplings against the bulk mass. The left edge is the BF bound."""
     m2, km, lo, hi = stab["M2"], stab["kappa_min"], stab["pair_lo"], stab["pair_hi"]
     i0 = np.flatnonzero(np.isfinite(lo))[0]
-    # pair_range curves start at the added point (0, -pi/4)
+    # the pair opens at M^2 = 0, kappa = -pi/4, where the massless w = 1 root is double
     m2p = np.r_[0, m2[i0:]]
     lop, hip = np.r_[-np.pi / 4, lo[i0:]], np.r_[-np.pi / 4, hi[i0:]]
 
     fig, ax = plt.subplots(figsize=W1)
     ax.fill_between([-0.25, 0.75], -3.5, 0.45, color=tint(BLUE, 0.16), lw=0)
     ax.fill_between(m2, km, 0, color=tint(RED, 0.28), lw=0)
+    # darker, so the two unstable regions also differ in lightness
     ax.fill_between(m2p, lop, hip, color=tint(RED, 0.5), lw=0)
     for xs, ys in ((m2, km), (m2p, lop), (m2p, hip)):
         ax.plot(xs, ys, color="black", lw=1)
@@ -510,12 +531,12 @@ def stability_diagram(stab, name="10_stability_diagram"):
     save(fig, name)
 
 def bifurcation_diagram(par, branches, name="11_bifurcation_diagram"):
-    """Re w and Im w against kappa."""
+    """Re w and Im w of the modes against kappa; the Krein collision is the fold at kappa_s."""
     fig, (top, bot) = plt.subplots(2, 1, figsize=(W1[0], 4.8), sharex=True,
                                    gridspec_kw={"height_ratios": [3, 2], "hspace": 0.1})
     spectrum_curves(top, par, wmax=3.2)
     for i, (w, k) in enumerate(branches):
-        if i > 0:  # skip the imaginary axis
+        if i > 0:  # branch 0 is the imaginary axis, where Re w = 0
             top.plot(k, w.real, "--", color=RED)
         bot.plot(k, w.imag, "--", color=RED)
     ks, ws = collisions(par, branches)[0]
@@ -534,7 +555,7 @@ def bifurcation_diagram(par, branches, name="11_bifurcation_diagram"):
     save(fig, name)
 
 def mode_profiles(par, name="12_mode_profiles", n=3):
-    """sin^ell(r) cos^(2 nu)(r) 2F1(s - w/2, s + w/2; ell + d/2; sin^2 r), scaled to max 1."""
+    """Normalized radial profiles of the first real modes; dots are the boundary values F."""
     nu, s, _, _ = derived(par)
     d, ell = par["d"], par["ell"]
     r = np.linspace(0, np.pi / 2, 600)[:-1]
